@@ -1,112 +1,311 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import axios from "axios";
+import {
+  Activity,
+  ArrowLeftRight,
+  CheckCircle,
+  Circle,
+} from "lucide-react-native";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Dimensions,
+  FlatList,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { BarChart } from "react-native-chart-kit";
+import { useSelector } from "react-redux";
+import { INDICATORS } from "../../services/api";
+import { RootState } from "../../store";
 
-import { Collapsible } from '@/components/ui/collapsible';
-import { ExternalLink } from '@/components/external-link';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
+const screenWidth = Dimensions.get("window").width;
 
-export default function TabTwoScreen() {
+export default function CompareScreen() {
+  const { list } = useSelector((state: RootState) => state.countries);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [comparisonData, setComparisonData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (selectedIds.length > 0) {
+      fetchComparisonData();
+    } else {
+      setComparisonData([]);
+    }
+  }, [selectedIds]);
+
+  const fetchComparisonData = async () => {
+    setLoading(true);
+    try {
+      const results = await Promise.all(
+        selectedIds.map(async (id) => {
+          const response = await axios.get(
+            `https://api.worldbank.org/v2/country/${id}/indicator/${INDICATORS.INTERNET_USERS}?format=json&per_page=1`
+          );
+          const countryName = list.find((c) => c.id === id)?.name || id;
+          const value = response.data[1]?.[0]?.value || 0;
+          return { name: countryName, value: parseFloat(value.toFixed(1)) };
+        })
+      );
+      setComparisonData(results);
+    } catch (error) {
+      console.error("Failed to fetch comparison data", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleSelection = (id: string) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter((i) => i !== id));
+    } else if (selectedIds.length < 3) {
+      setSelectedIds([...selectedIds, id]);
+    }
+  };
+
+  const selectedCountries = list.filter((c) => selectedIds.includes(c.id));
+
+  const chartData = {
+    labels: comparisonData.map((d) =>
+      d.name.length > 8 ? d.name.slice(0, 8) + ".." : d.name
+    ),
+    datasets: [{ data: comparisonData.map((d) => d.value) }],
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
+    <ThemedView style={styles.container}>
+      <View style={styles.header}>
+        <ThemedText type="title">Compare</ThemedText>
+        <ThemedText style={styles.subtitle}>
+          Select up to 3 countries to compare connectivity
+        </ThemedText>
+      </View>
+
+      <View style={styles.selectionArea}>
+        <FlatList
+          data={list.slice(0, 50)}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => {
+            const isSelected = selectedIds.includes(item.id);
+            return (
+              <TouchableOpacity
+                style={[styles.smallCard, isSelected && styles.selectedCard]}
+                onPress={() => toggleSelection(item.id)}
+              >
+                {isSelected ? (
+                  <CheckCircle size={16} color="#007AFF" />
+                ) : (
+                  <Circle size={16} color="#ccc" />
+                )}
+                <ThemedText style={styles.smallCardText}>
+                  {item.name}
+                </ThemedText>
+              </TouchableOpacity>
+            );
+          }}
         />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
-          Explore
-        </ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
-        />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
-            react-native-reanimated
-          </ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
+      </View>
+
+      {selectedIds.length > 0 ? (
+        <ScrollView
+          style={styles.comparisonArea}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.chartTitleContainer}>
+            <Activity size={20} color="#007AFF" />
+            <ThemedText type="subtitle" style={{ marginLeft: 8 }}>
+              Internet Usage Comparison (%)
             </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+          </View>
+
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#007AFF" />
+              <ThemedText style={{ marginTop: 10 }}>
+                Fetching comparison data...
+              </ThemedText>
+            </View>
+          ) : (
+            <>
+              {comparisonData.length > 0 && (
+                <View style={styles.chartContainer}>
+                  <BarChart
+                    data={chartData}
+                    width={screenWidth - 40}
+                    height={220}
+                    yAxisLabel=""
+                    yAxisSuffix="%"
+                    chartConfig={{
+                      backgroundColor: "#ffffff",
+                      backgroundGradientFrom: "#ffffff",
+                      backgroundGradientTo: "#ffffff",
+                      decimalPlaces: 1,
+                      color: (opacity = 1) => `rgba(0, 122, 255, ${opacity})`,
+                      labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                      style: { borderRadius: 16 },
+                    }}
+                    verticalLabelRotation={0}
+                    style={styles.chart}
+                  />
+                </View>
+              )}
+
+              <View style={styles.statsTable}>
+                <View style={styles.tableRow}>
+                  <ThemedText style={styles.tableHeader}>Country</ThemedText>
+                  <ThemedText style={styles.tableHeader}>
+                    Latest Internet %
+                  </ThemedText>
+                </View>
+                {comparisonData.map((d, index) => (
+                  <View key={index} style={styles.tableRow}>
+                    <ThemedText style={styles.tableName}>{d.name}</ThemedText>
+                    <ThemedText style={styles.tableValue}>
+                      {d.value}%
+                    </ThemedText>
+                  </View>
+                ))}
+                {selectedCountries.length > comparisonData.length && (
+                  <ThemedText style={styles.infoText}>
+                    Loading more data...
+                  </ThemedText>
+                )}
+              </View>
+            </>
+          )}
+        </ScrollView>
+      ) : (
+        <View style={styles.emptyContainer}>
+          <ArrowLeftRight size={64} color="#ccc" />
+          <ThemedText style={styles.emptyText}>
+            Select countries from the horizontal list above to start comparing
+            their latest stats
+          </ThemedText>
+        </View>
+      )}
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
+  container: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 60,
   },
-  titleContainer: {
-    flexDirection: 'row',
-    gap: 8,
+  header: {
+    marginBottom: 20,
+  },
+  subtitle: {
+    opacity: 0.6,
+    marginTop: 4,
+  },
+  selectionArea: {
+    marginBottom: 20,
+    height: 60,
+  },
+  smallCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: "#eee",
+    height: 40,
+  },
+  selectedCard: {
+    borderColor: "#007AFF",
+    backgroundColor: "#e5f1ff",
+  },
+  smallCardText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: "#000",
+  },
+  comparisonArea: {
+    flex: 1,
+  },
+  chartTitleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  chartContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 10,
+    marginBottom: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  chart: {
+    borderRadius: 16,
+  },
+  loadingContainer: {
+    height: 200,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    opacity: 0.5,
+  },
+  emptyText: {
+    textAlign: "center",
+    marginTop: 16,
+    paddingHorizontal: 40,
+  },
+  statsTable: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    marginBottom: 40,
+  },
+  tableRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f2f2f7",
+  },
+  tableHeader: {
+    fontWeight: "700",
+    color: "#8e8e93",
+  },
+  tableName: {
+    width: "60%",
+    color: "#000",
+  },
+  tableValue: {
+    width: "40%",
+    textAlign: "right",
+    color: "#34C759",
+    fontWeight: "600",
+  },
+  infoText: {
+    textAlign: "center",
+    fontSize: 12,
+    color: "#8e8e93",
+    marginTop: 10,
   },
 });
